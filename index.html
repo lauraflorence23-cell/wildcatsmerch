@@ -152,6 +152,28 @@
     background:var(--ink); border:1px solid var(--line); color:var(--bone);
     border-radius:8px; padding:8px 10px; font-size:14px; width:100%;
   }
+  .field-block{ display:flex; flex-direction:column; gap:5px; margin-bottom:2px; }
+  .field-label{ font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--bone-dim); }
+  .required-dot{ color:var(--gold); }
+  .field-block--highlight{
+    background:rgba(212,167,44,0.08); border:1px solid var(--gold-dim);
+    border-radius:10px; padding:8px 10px 10px;
+  }
+  .field-block--highlight .field-label{ color:var(--gold); }
+  .field-select--highlight{
+    border:1px solid var(--gold-dim); background:var(--ink-2); font-weight:600;
+  }
+  .field-select--highlight:invalid, .field-select--highlight option[value=""]{ color:var(--bone-dim); }
+  .field-error{
+    border-color:var(--maroon-bright) !important;
+    box-shadow:0 0 0 2px rgba(156,44,58,0.35);
+    animation: shake 0.25s ease;
+  }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    25%{ transform:translateX(-3px); }
+    75%{ transform:translateX(3px); }
+  }
   .qty-stepper{ display:flex; align-items:center; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .qty-stepper button{
     background:var(--ink); color:var(--bone); border:none; width:34px; height:36px;
@@ -400,8 +422,8 @@ const ITEMS = [
   { id:'towel_standard', name:'Towel — Standard, White', category:'apparel', price:15, img:IMAGES.towel_standard },
   { id:'towel_skinny', name:'Towel — Skinny, White', category:'apparel', price:20 },
 
-  { id:'duffel_custom', name:'Duffel Bag — Black, Custom w/#', category:'custom', price:65, hasCustomNum:true },
-  { id:'backpack_custom', name:'Backpack — Custom w/#', category:'custom', price:55, hasCustomNum:true, img:IMAGES.backpack_custom },
+  { id:'duffel_custom', name:'Duffel Bag — Black, Custom w/#', category:'custom', price:65, hasCustomNum:true, hasCustomName:true },
+  { id:'backpack_custom', name:'Backpack — Custom w/#', category:'custom', price:55, hasCustomNum:true, hasCustomName:true, img:IMAGES.backpack_custom },
 ];
 const SIZES = ['Small','Medium','Large','Extra Large','Other (specify in notes)'];
 
@@ -411,17 +433,17 @@ let drawerStep = 'cart'; // 'cart' | 'details'
 
 function money(n){ return '$' + n.toFixed(2); }
 
-function cartLineKey(itemId, size, customNum){
-  return itemId + '::' + (size||'') + '::' + (customNum||'');
+function cartLineKey(itemId, size, customNum, customName){
+  return itemId + '::' + (size||'') + '::' + (customNum||'') + '::' + (customName||'');
 }
 
-function addToCart(item, size, customNum, qty){
+function addToCart(item, size, customNum, customName, qty){
   qty = parseInt(qty,10) || 1;
-  const key = cartLineKey(item.id, size, customNum);
+  const key = cartLineKey(item.id, size, customNum, customName);
   const existing = cart.find(l => l.key === key);
   if(existing){ existing.qty += qty; }
   else{
-    cart.push({ key, itemId:item.id, name:item.name, price:item.price, size:size||null, customNum:customNum||null, qty });
+    cart.push({ key, itemId:item.id, name:item.name, price:item.price, size:size||null, customNum:customNum||null, customName:customName||null, qty });
   }
   renderCartCount();
 }
@@ -448,11 +470,30 @@ function renderCatalog(){
     const card = document.createElement('div');
     card.className = 'card';
 
-    let extraField = '';
+    let extraFields = '';
     if(item.hasSize){
-      extraField = `<select class="field-select" data-role="size">` + SIZES.map(s=>`<option value="${s}">${s}</option>`).join('') + `</select>`;
-    } else if(item.hasCustomNum){
-      extraField = `<input class="field-num" data-role="customnum" type="text" maxlength="3" placeholder="Player #">`;
+      extraFields += `
+        <div class="field-block field-block--highlight">
+          <label class="field-label">Size <span class="required-dot">*</span></label>
+          <select class="field-select field-select--highlight" data-role="size">
+            <option value="" disabled selected>Select size…</option>
+            ${SIZES.map(s=>`<option value="${s}">${s}</option>`).join('')}
+          </select>
+        </div>`;
+    }
+    if(item.hasCustomNum){
+      extraFields += `
+        <div class="field-block">
+          <label class="field-label">Player # <span class="required-dot">*</span></label>
+          <input class="field-num" data-role="customnum" type="text" maxlength="3" placeholder="e.g. 4">
+        </div>`;
+    }
+    if(item.hasCustomName){
+      extraFields += `
+        <div class="field-block">
+          <label class="field-label">Name for Embroidery <span class="required-dot">*</span></label>
+          <input class="field-num" data-role="customname" type="text" maxlength="20" placeholder="e.g. Brodine">
+        </div>`;
     }
 
     const photoBlock = item.img
@@ -464,7 +505,7 @@ function renderCatalog(){
       <div class="swatch"></div>
       <div class="card-name">${item.name}</div>
       <div class="card-price">${money(item.price)}</div>
-      ${extraField ? `<div class="card-row">${extraField}</div>` : ''}
+      ${extraFields}
       <div class="card-row">
         <div class="qty-stepper">
           <button type="button" data-role="dec">–</button>
@@ -485,16 +526,40 @@ function renderCatalog(){
 
     const addBtn = card.querySelector('[data-role="add"]');
     addBtn.addEventListener('click', ()=>{
-      const size = item.hasSize ? card.querySelector('[data-role="size"]').value : null;
-      let customNum = null;
-      if(item.hasCustomNum){
-        customNum = card.querySelector('[data-role="customnum"]').value.trim();
-        if(!customNum){
-          card.querySelector('[data-role="customnum"]').focus();
+      let size = null, customNum = null, customName = null;
+
+      if(item.hasSize){
+        const sel = card.querySelector('[data-role="size"]');
+        if(!sel.value){
+          sel.classList.add('field-error');
+          sel.focus();
           return;
         }
+        sel.classList.remove('field-error');
+        size = sel.value;
       }
-      addToCart(item, size, customNum, qtyInput.value);
+      if(item.hasCustomNum){
+        const inp = card.querySelector('[data-role="customnum"]');
+        customNum = inp.value.trim();
+        if(!customNum){
+          inp.classList.add('field-error');
+          inp.focus();
+          return;
+        }
+        inp.classList.remove('field-error');
+      }
+      if(item.hasCustomName){
+        const inp = card.querySelector('[data-role="customname"]');
+        customName = inp.value.trim();
+        if(!customName){
+          inp.classList.add('field-error');
+          inp.focus();
+          return;
+        }
+        inp.classList.remove('field-error');
+      }
+
+      addToCart(item, size, customNum, customName, qtyInput.value);
       addBtn.textContent = 'Added ✓';
       addBtn.classList.add('added');
       setTimeout(()=>{ addBtn.textContent='Add to Order'; addBtn.classList.remove('added'); }, 1100);
@@ -542,7 +607,7 @@ function renderCartStep(){
     return;
   }
   drawerBody.innerHTML = cart.map(l => {
-    const meta = [l.size ? 'Size ' + l.size : null, l.customNum ? '# ' + l.customNum : null].filter(Boolean).join(' · ');
+    const meta = [l.size ? 'Size ' + l.size : null, l.customNum ? '# ' + l.customNum : null, l.customName ? 'Name: ' + l.customName : null].filter(Boolean).join(' · ');
     return `
       <div class="line-item">
         <div>
@@ -690,7 +755,7 @@ async function submitOrder(){
     contactPref: document.querySelector('input[name="contact"]:checked').value,
     payment: document.querySelector('input[name="payment"]:checked').value,
     notes: document.getElementById('f_notes').value.trim(),
-    items: cart.map(l => ({ name:l.name, size:l.size, customNum:l.customNum, qty:l.qty, price:l.price, lineTotal: +(l.price*l.qty).toFixed(2) })),
+    items: cart.map(l => ({ name:l.name, size:l.size, customNum:l.customNum, customName:l.customName, qty:l.qty, price:l.price, lineTotal: +(l.price*l.qty).toFixed(2) })),
     subtotal: +subtotal.toFixed(2),
     donation: +donation.toFixed(2),
     total: +total.toFixed(2),
@@ -759,7 +824,7 @@ function renderConfirmStep(){
       <div class="line-item">
         <div>
           <div class="li-name">${it.name}</div>
-          <div class="li-meta">${[it.size?'Size '+it.size:null, it.customNum?'# '+it.customNum:null].filter(Boolean).join(' · ')}</div>
+          <div class="li-meta">${[it.size?'Size '+it.size:null, it.customNum?'# '+it.customNum:null, it.customName?'Name: '+it.customName:null].filter(Boolean).join(' · ')}</div>
           <div class="li-meta">Qty ${it.qty}</div>
         </div>
         <div class="li-right"><div class="li-name">${money(it.lineTotal)}</div></div>
@@ -836,7 +901,7 @@ function groupLinesIntoOrders(lines){
     }
     const ord = map.get(id);
     if(line.itemName){
-      ord.items.push({ name: line.itemName, size: line.size, customNum: line.customNum, qty: line.qty });
+      ord.items.push({ name: line.itemName, size: line.size, customNum: line.customNum, customName: line.customName, qty: line.qty });
     }
   });
   return Array.from(map.values());
@@ -897,7 +962,7 @@ function renderStaffTable(orders, lines){
       const customerName = [o.customerFirstName, o.customerLastName].filter(Boolean).join(' ');
       const playerName = [o.playerFirstName, o.playerLastName].filter(Boolean).join(' ');
       const addressLine = [o.address, [o.city, o.state].filter(Boolean).join(', '), o.zip].filter(Boolean).join(' · ');
-      const itemsHtml = o.items.map(it => `${it.qty}&times; ${it.name}${it.size?' ('+it.size+')':''}${it.customNum?' #'+it.customNum:''}`).join('<br>');
+      const itemsHtml = o.items.map(it => `${it.qty}&times; ${it.name}${it.size?' ('+it.size+')':''}${it.customNum?' #'+it.customNum:''}${it.customName?' — '+it.customName:''}`).join('<br>');
       return `
       <tr>
         <td>${o.id}<br><span style="color:var(--bone-dim)">${new Date(o.submittedAt).toLocaleString()}</span></td>
@@ -925,13 +990,13 @@ function renderStaffTable(orders, lines){
 
 function exportCsv(lines){
   if(!lines || lines.length === 0){ alert('No orders to export yet.'); return; }
-  const header = ['Submitted','Order ID','Customer First','Customer Last','Player First','Player Last','Phone','Email','Address','City','State','ZIP','Team/Division','Jersey #','Contact Pref','Payment','Item','Size','Custom #','Qty','Unit Price','Line Total','Order Subtotal','Order Donation','Order Total','Notes'];
+  const header = ['Submitted','Order ID','Customer First','Customer Last','Player First','Player Last','Phone','Email','Address','City','State','ZIP','Team/Division','Jersey #','Contact Pref','Payment','Item','Size','Custom #','Custom Name','Qty','Unit Price','Line Total','Order Subtotal','Order Donation','Order Total','Notes'];
   const rows = lines.map(o => [
     o.submittedAt ? new Date(o.submittedAt).toLocaleString() : '',
     o.orderId, o.customerFirstName, o.customerLastName, o.playerFirstName, o.playerLastName,
     o.phone, o.email, o.address, o.city, o.state, o.zip,
     o.team, o.jersey, o.contactPref, o.payment,
-    o.itemName, o.size, o.customNum, o.qty, o.unitPrice, o.lineTotal,
+    o.itemName, o.size, o.customNum, o.customName, o.qty, o.unitPrice, o.lineTotal,
     o.orderSubtotal, o.orderDonation, o.orderTotal, o.notes
   ]);
   const csvEscape = (v) => {
