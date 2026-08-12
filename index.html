@@ -206,7 +206,8 @@
   .overlay.open{ opacity:1; pointer-events:auto; }
 
   .drawer{
-    position:fixed; top:0; right:0; height:100%; width:min(420px, 100vw);
+    position:fixed; top:0; right:0; width:min(420px, 100vw);
+    height:100vh; height:100dvh;
     background:var(--ink-2); border-left:1px solid var(--line); z-index:60;
     transform:translateX(100%); transition:transform 0.25s ease; display:flex; flex-direction:column;
   }
@@ -648,9 +649,9 @@ function renderDetailsStep(){
 
     <div class="section-label">Orderer Information</div>
     <div class="form-grid">
-      <div class="form-field"><label>Customer First Name</label><input id="f_customerFirstName" type="text"></div>
-      <div class="form-field"><label>Customer Last Name</label><input id="f_customerLastName" type="text"></div>
-      <div class="form-field"><label>Phone Number</label><input id="f_phone" type="tel"></div>
+      <div class="form-field"><label>Customer First Name <span class="required-dot">*</span></label><input id="f_customerFirstName" type="text"></div>
+      <div class="form-field"><label>Customer Last Name <span class="required-dot">*</span></label><input id="f_customerLastName" type="text"></div>
+      <div class="form-field"><label>Phone Number <span class="required-dot">*</span></label><input id="f_phone" type="tel"></div>
       <div class="form-field"><label>Email Address</label><input id="f_email" type="email"></div>
     </div>
 
@@ -664,10 +665,10 @@ function renderDetailsStep(){
 
     <div class="section-label">Mailing Address</div>
     <div class="form-grid">
-      <div class="form-field full"><label>Street Address</label><input id="f_address" type="text"></div>
-      <div class="form-field"><label>City</label><input id="f_city" type="text"></div>
-      <div class="form-field"><label>State</label><input id="f_state" type="text" maxlength="2" placeholder="CA"></div>
-      <div class="form-field"><label>ZIP</label><input id="f_zip" type="text" inputmode="numeric" maxlength="10"></div>
+      <div class="form-field full"><label>Street Address <span class="required-dot">*</span></label><input id="f_address" type="text"></div>
+      <div class="form-field"><label>City <span class="required-dot">*</span></label><input id="f_city" type="text"></div>
+      <div class="form-field"><label>State <span class="required-dot">*</span></label><input id="f_state" type="text" maxlength="2"></div>
+      <div class="form-field"><label>ZIP <span class="required-dot">*</span></label><input id="f_zip" type="text" inputmode="numeric" maxlength="10"></div>
     </div>
 
     <div class="section-label">Preferred Contact</div>
@@ -721,19 +722,48 @@ function renderDetailsStep(){
 }
 
 async function submitOrder(){
-  const customerFirstName = document.getElementById('f_customerFirstName').value.trim();
-  const customerLastName = document.getElementById('f_customerLastName').value.trim();
-  const phone = document.getElementById('f_phone').value.trim();
-  const address = document.getElementById('f_address').value.trim();
-  const city = document.getElementById('f_city').value.trim();
-  const state = document.getElementById('f_state').value.trim();
-  const zip = document.getElementById('f_zip').value.trim();
-  const btn = document.getElementById('submitOrderBtn');
+  const fieldIds = ['f_customerFirstName','f_customerLastName','f_phone','f_address','f_city','f_state','f_zip'];
+  const fieldLabels = {
+    f_customerFirstName: 'Customer First Name',
+    f_customerLastName: 'Customer Last Name',
+    f_phone: 'Phone Number',
+    f_address: 'Street Address',
+    f_city: 'City',
+    f_state: 'State',
+    f_zip: 'ZIP',
+  };
 
-  if(!customerFirstName || !customerLastName || !phone || !address || !city || !state || !zip){
-    alert('Please fill in your name, phone number, and mailing address so the merch team can reach you and keep records.');
+  const values = {};
+  const missing = [];
+  fieldIds.forEach(id => {
+    const el = document.getElementById(id);
+    const val = el.value.trim();
+    values[id] = val;
+    if(!val){
+      missing.push(id);
+      el.classList.add('field-error');
+    }else{
+      el.classList.remove('field-error');
+    }
+  });
+
+  if(missing.length){
+    const first = document.getElementById(missing[0]);
+    first.focus();
+    first.scrollIntoView({ behavior:'smooth', block:'center' });
+    alert('Please fill in: ' + missing.map(id => fieldLabels[id]).join(', '));
     return;
   }
+
+  const customerFirstName = values.f_customerFirstName;
+  const customerLastName = values.f_customerLastName;
+  const phone = values.f_phone;
+  const address = values.f_address;
+  const city = values.f_city;
+  const state = values.f_state;
+  const zip = values.f_zip;
+  const btn = document.getElementById('submitOrderBtn');
+
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
